@@ -5,6 +5,10 @@ import lombok.Setter;
 import mujina.idp.FederatedUserAuthenticationToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.EnvironmentAware;
+import org.springframework.core.env.AbstractEnvironment;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.PropertySource;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.saml.key.JKSKeyManager;
 import org.springframework.stereotype.Component;
@@ -15,10 +19,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+
 @Getter
 @Setter
 @Component
-public class IdpConfiguration extends SharedConfiguration {
+public class IdpConfiguration extends SharedConfiguration implements EnvironmentAware {
 
   private String defaultEntityId;
   private Map<String, List<String>> attributes = new TreeMap<>();
@@ -28,6 +33,9 @@ public class IdpConfiguration extends SharedConfiguration {
   private AuthenticationMethod defaultAuthenticationMethod;
   private final String idpPrivateKey;
   private final String idpCertificate;
+  
+  @Autowired
+  private Environment env;
 
   @Autowired
   public IdpConfiguration(JKSKeyManager keyManager,
@@ -72,10 +80,30 @@ public class IdpConfiguration extends SharedConfiguration {
     putAttribute("urn:mace:dir:attribute-def:mail", "j.doe@example.com");
     putAttribute("urn:mace:terena.org:attribute-def:schacHomeOrganization", "example.com");
     putAttribute("urn:mace:dir:attribute-def:eduPersonPrincipalName", "j.doe@example.com");
+    
+//    String userName = env.getProperty("dgp.user_name");
+
+  }
+  
+
+  public void setEnvironmentParams() {
+	  
+
+      AbstractEnvironment ae = (AbstractEnvironment)env;
+	  PropertySource test1Source = ae.getPropertySources().get("dgp");
+	  String userName = env.getProperty("dgp.user_name");
+	  putAttribute("test", userName);
   }
 
   private void putAttribute(String key, String... values) {
     this.attributes.put(key, Arrays.asList(values));
   }
+
+
+@Override
+public void setEnvironment(final Environment environment) {
+    this.env= environment;
+    this.setEnvironmentParams();
+}
 
 }
