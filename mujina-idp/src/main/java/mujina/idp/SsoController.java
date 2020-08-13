@@ -3,16 +3,30 @@ package mujina.idp;
 import mujina.api.IdpConfiguration;
 import mujina.saml.SAMLAttribute;
 import mujina.saml.SAMLPrincipal;
+
+import org.opensaml.Configuration;
 import org.opensaml.common.binding.SAMLMessageContext;
 import org.opensaml.saml2.core.AuthnRequest;
 import org.opensaml.saml2.core.NameIDType;
+import org.opensaml.saml2.core.Response;
+import org.opensaml.saml2.ecp.Request;
 import org.opensaml.saml2.metadata.provider.MetadataProviderException;
+import org.opensaml.security.SAMLSignatureProfileValidator;
 import org.opensaml.ws.message.decoder.MessageDecodingException;
 import org.opensaml.ws.message.encoder.MessageEncodingException;
+import org.opensaml.xml.XMLObject;
 import org.opensaml.xml.io.MarshallingException;
+import org.opensaml.xml.io.Unmarshaller;
+import org.opensaml.xml.io.UnmarshallerFactory;
 import org.opensaml.xml.security.SecurityException;
+import org.opensaml.xml.security.x509.BasicX509Credential;
+import org.opensaml.xml.signature.Signature;
 import org.opensaml.xml.signature.SignatureException;
+import org.opensaml.xml.signature.X509Certificate;
+import org.opensaml.xml.util.Base64;
 import org.opensaml.xml.validation.ValidationException;
+import org.opensaml.xml.validation.Validator;
+import org.owasp.esapi.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -20,11 +34,20 @@ import org.springframework.stereotype.Controller;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.xml.bind.DatatypeConverter;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -74,7 +97,28 @@ public class SsoController {
       assertionConsumerServiceURL,
       messageContext.getRelayState());
 
-    samlMessageHandler.sendAuthnResponse(principal, response);
+ 	 // Check for a credential (SP public key) in the request
+    Signature sig = authnRequest.getSignature();
+    X509Certificate certificate = sig.getKeyInfo().getX509Datas().get(0).getX509Certificates().get(0);
+    BasicX509Credential spCredential = null;
+    java.security.cert.X509Certificate spCert = null;
+
+    if (certificate != null) {
+        //Converts org.opensaml.xml.signature.X509Certificate to BasicX509Credential
+        String lexicalXSDBase64Binary = certificate.getValue();
+        byte[] decoded = DatatypeConverter.parseBase64Binary(lexicalXSDBase64Binary);
+
+        try {
+            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+            spCert = (java.security.cert.X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(decoded));
+            spCredential = new BasicX509Credential();
+            spCredential.setEntityCertificate(spCert);   
+
+        }catch(Exception ex) {
+      	  throw new ValidationException(ex.getMessage());
+        }
+    }
+    samlMessageHandler.sendAuthnResponse(principal, response, spCredential);
   }
 
   @SuppressWarnings("unchecked")
