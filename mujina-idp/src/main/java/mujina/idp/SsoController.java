@@ -98,25 +98,28 @@ public class SsoController {
       messageContext.getRelayState());
 
  	 // Check for a credential (SP public key) in the request
+	BasicX509Credential spCredential = null;
     Signature sig = authnRequest.getSignature();
-    X509Certificate certificate = sig.getKeyInfo().getX509Datas().get(0).getX509Certificates().get(0);
-    BasicX509Credential spCredential = null;
-    java.security.cert.X509Certificate spCert = null;
+    if(sig!=null) {
+    	X509Certificate certificate = sig.getKeyInfo().getX509Datas().get(0).getX509Certificates().get(0);
 
-    if (certificate != null) {
-        //Converts org.opensaml.xml.signature.X509Certificate to BasicX509Credential
-        String lexicalXSDBase64Binary = certificate.getValue();
-        byte[] decoded = DatatypeConverter.parseBase64Binary(lexicalXSDBase64Binary);
+    	java.security.cert.X509Certificate spCert = null;
 
-        try {
-            CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-            spCert = (java.security.cert.X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(decoded));
-            spCredential = new BasicX509Credential();
-            spCredential.setEntityCertificate(spCert);   
+    	if (certificate != null) {
+    		//Converts org.opensaml.xml.signature.X509Certificate to BasicX509Credential
+    		String lexicalXSDBase64Binary = certificate.getValue();
+    		byte[] decoded = DatatypeConverter.parseBase64Binary(lexicalXSDBase64Binary);
 
-        }catch(Exception ex) {
-      	  throw new ValidationException(ex.getMessage());
-        }
+    		try {
+    			CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+    			spCert = (java.security.cert.X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(decoded));
+    			spCredential = new BasicX509Credential();
+    			spCredential.setEntityCertificate(spCert);   
+
+    		}catch(Exception ex) {
+    			throw new ValidationException(ex.getMessage());
+    		}
+    	}
     }
     samlMessageHandler.sendAuthnResponse(principal, response, spCredential);
   }
